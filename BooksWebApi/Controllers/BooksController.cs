@@ -1,4 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using AutoMapper;
+using BooksWebApi.DTOs;
+using BooksWebApi.Entities;
+using BooksWebApi.Interfaces;
+using Microsoft.AspNetCore.Mvc;
+using static System.Reflection.Metadata.BlobBuilder;
 
 namespace BooksWebApi.Controllers
 {
@@ -6,50 +11,76 @@ namespace BooksWebApi.Controllers
     [Route("api/[controller]")]
     public class BooksController : ControllerBase
     {
+        private readonly IBookRepository _bookRepository;
+        private readonly IMapper _mapper;
 
-        [HttpPost("create-book")]
-        public IActionResult CreateBook(Book book)
+        public BooksController(IBookRepository bookRepository, IMapper mapper)
         {
-            MockDb.Books.Add(book.Id, book);
-            return Ok(book);
+            _bookRepository = bookRepository;
+            _mapper = mapper;
         }
 
 
-        [HttpPut("update-book")]
-        public IActionResult UpdateBook(Book book)
+        [HttpPost("create-book")]
+        public async Task<IActionResult> CreateBook(BookInputDTO bookDTO)
         {
-            MockDb.Books.TryGetValue(book.Id, out var existingBook);
-            if(existingBook != null)
-            {
-                existingBook.Name = book.Name;
-                existingBook.Author = book.Author;
-                return Ok(book);
-            }
-            return NotFound();
+            var book = _mapper.Map<Book>(bookDTO);
+            await _bookRepository.AddBookAsync(book);
+            return Ok(_mapper.Map<BookOutputDTO>(book));
+        }
 
+
+        [HttpPost("update-book")]
+        public async Task<IActionResult> UpdateBook(int bookId, BookInputDTO bookDTO)
+        {
+            var book = _mapper.Map<Book>(bookDTO);
+            await _bookRepository.UpdateBookAsync(bookId, book);
+            book.Id = bookId;
+            return Ok(_mapper.Map<BookOutputDTO>(book));
         }
 
 
         [HttpGet("book/{id}")]
-        public IActionResult GetBookById(int id)
+        public async Task<IActionResult> GetBookById(int id)
         {
-            MockDb.Books.TryGetValue(id, out var book);
-            return book == null ? NotFound() : Ok(book);
+            var book = await _bookRepository.GetBookByIdAsync(id);
+            var result = _mapper.Map<BookOutputDTO>(book);
+            return Ok(result);
         }
 
 
         [HttpGet("books")]
-        public IActionResult GetAllBooks()
+        public async Task<IActionResult> GetAllBooks()
         {
-            List<Book> books = MockDb.Books.Values.ToList();
-            return Ok(books);
+            var books = await _bookRepository.GetAllBooksAsync();
+            var results = _mapper.Map<List<BookOutputDTO>>(books.ToList());
+            return Ok(results);
+        }
+
+
+        [HttpGet("books/{pageSize}/{pageNumber}")]
+        public async Task<IActionResult> GetBooksWithPageNumbers(int pageSize, int pageNumber)
+        {
+            var books = await _bookRepository.GetBooksWithPageNumbersAsync(pageSize, pageNumber);
+            var results = _mapper.Map<List<BookOutputDTO>>(books.ToList());
+            return Ok(results);
+        }
+
+
+        [HttpGet("search/{keyword}")]
+        public async Task<IActionResult> SearchBook(string keyword)
+        {
+            var books = await _bookRepository.SearchBookAsync(keyword);
+            var results = _mapper.Map<List<BookOutputDTO>>(books.ToList());
+            return Ok(results);
         }
 
 
         [HttpDelete("book/{id}")]
-        public IActionResult DeleteBook(int id)
+        public async Task<IActionResult> DeleteBook(int id)
         {
-            return MockDb.Books.Remove(id) ? Ok() : BadRequest();
+            await _bookRepository.DeleteBookAsync(id);
+            return Ok();
         }
     }
 }
